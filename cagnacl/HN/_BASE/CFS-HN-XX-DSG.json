@@ -1,0 +1,379 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (COMMON DSG)",
+
+    "Metadata": {
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+
+    "Parameters": {
+      "VPCid":     { "Type": "String" },
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" }
+    },
+
+    "Resources": {
+
+
+      "HNSGecs": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"ECS","001" ] ] } ,
+            "GroupDescription": "ECS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": { "Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGefs": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"EFS","001" ] ] } ,
+            "GroupDescription": "EFS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": { "Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"EFS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGalb": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"ALB","001" ] ] } ,
+            "GroupDescription": "ALB access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGrds": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"RDS","001" ] ] } ,
+            "GroupDescription": "RDS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"RDS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGsgw": {
+        "Type": "AWS::EC2::SecurityGroup",
+        "DependsOn": "HNSGssh",
+        "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"SGW","001" ] ] } ,
+            "GroupDescription": "Secure GTW access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SGW","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGssh": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"SSH","001" ] ] } ,
+            "GroupDescription": "SSH access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SSH","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGrhn": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"RHN","001" ] ] } ,
+            "GroupDescription": "RHN access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "IpProtocol" : "-1",
+                "CidrIp" : "0.0.0.0/0"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"RHN","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+
+      "HNSGecsI00080": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTP from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI31000to61000": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow Intercluster traffic from/to ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "31000",
+          "ToPort": "61000",
+          "SourceSecurityGroupId": { "Ref": "HNSGecs" }
+        }
+      },
+
+      "HNSGecsI00443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvPR",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "443",
+          "ToPort":     "443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGefsI02049": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGefs", "GroupId" ] },
+          "Description": "Allow NFS Traffic",
+          "IpProtocol": "tcp",
+          "FromPort": "2049",
+          "ToPort": "2049",
+          "SourceSecurityGroupId": { "Fn::GetAtt": ["HNSGefs","GroupId"] }
+        }
+      },
+
+      "HNSGrdsI03306": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGrds", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow RDS(3306) from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "IpProtocol": "tcp",
+          "FromPort": "3306",
+          "ToPort": "3306",
+          "SourceSecurityGroupId": { "Fn::GetAtt": [ "HNSGecs", "GroupId" ] }
+        }
+      },
+
+      "HNSGsgwI00022": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGsgw", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow SSH from ","Internet" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGsshI00022": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGssh", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow SSH from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SGW","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "SourceSecurityGroupId": { "Fn::GetAtt": [ "HNSGsgw", "GroupId" ] }
+        }
+      },
+
+      "HNSGalbI00080": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTP from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI00443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvPR",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "443",
+          "ToPort":     "443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      }
+
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutSGecs": {
+        "Value": { "Ref" : "HNSGecs" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGecs" }}
+      },
+      "OutSGefs": {
+        "Value": { "Ref" : "HNSGefs" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGefs" }}
+      },
+      "OutSGalb": {
+        "Value": { "Ref" : "HNSGalb" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGalb" }}
+      },
+      "OutSGrds": {
+        "Value": { "Ref" : "HNSGrds" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGrds" }}
+      },
+      "OutSGsgw": {
+        "Value": { "Ref" : "HNSGsgw" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGsgw" }}
+      },
+      "OutSGssh": {
+        "Value": { "Ref" : "HNSGssh" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGssh" }}
+      },
+      "OutSGrhn": {
+        "Value": { "Ref" : "HNSGrhn" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGrhn" }}
+      }
+
+    }
+}

@@ -1,0 +1,126 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (ENV SQS Queue)",
+
+    "Metadata": {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+              "Label": { "default": "Queue Parameters" },
+              "Parameters": ["QName", "QDefVisibleTimeout","QMsgRetentionPeriod","QMaximumMsgSize","QReceiveMsgWaitTimeSeconds"]
+          },
+          {
+              "Label": { "default": "Dead Letter Queue Parameters" },
+              "Parameters": ["DLQName", "DLQDefVisibleTimeout","DLQMsgRetentionPeriod","DLQMaximumMsgSize","DLQReceiveMsgWaitTimeSeconds","DLQMaxReceiveCount"]
+          },
+          {
+              "Label": { "default": "Tagging Configuration" },
+              "Parameters": ["TagPrj","TagEnv","TagTeam","TagUser"]
+          }
+        ]
+      }
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+    "Parameters": {
+
+      "QName":                        { "Type": "String" },
+      "PQtype":                       { "Type": "String" },
+      "QDefVisibleTimeout":           { "Description": "Default Visibility Timeout (s) ", "Type": "Number", "Default": "30" },
+      "QMsgRetentionPeriod":          { "Description": "Message Retention Period (s)   ", "Type": "Number", "Default": "345600" },
+      "QMaximumMsgSize":              { "Description": "Maximum Message Size (kiB)     ", "Type": "Number", "Default": "262144" },
+      "QReceiveMsgWaitTimeSeconds":   { "Description": "Receive Message Wait Time (s)  ", "Type": "Number", "Default": "0" },
+
+      "DLQDefVisibleTimeout":         { "Description": "Default Visibility Timeout (s) ", "Type": "Number", "Default": "30" },
+      "DLQMsgRetentionPeriod":        { "Description": "Message Retention Period (s)   ", "Type": "Number", "Default": "345600" },
+      "DLQMaximumMsgSize":            { "Description": "Maximum Message Size (kiB)     ", "Type": "Number", "Default": "262144" },
+      "DLQReceiveMsgWaitTimeSeconds": { "Description": "Receive Message Wait Time (s)  ", "Type": "Number", "Default": "0" },
+      "DLQMaxReceiveCount":           { "Description": "Max Receive Count              ", "Type": "Number", "Default": "15" },
+
+      "QEnv":    { "Type": "String" },
+      "TagPrj":  { "Type": "String" },
+      "TagTeam": { "Type": "String" },
+      "TagUser": { "Type": "String" },
+      "TagEnv":  { "Type": "String" }
+    },
+
+    "Resources": {
+
+      "HNSQSDLQ": {
+        "Type" : "AWS::SQS::Queue",
+          "Properties" : {
+            "QueueName":                     { "Fn::Join": [ "-", [
+                "SQS","HN", { "Ref": "TagEnv" }, { "Ref": "QEnv" },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode" ] },
+                { "Ref": "PQtype" },{ "Ref": "QName" },"DLQ" ] ] },
+            "VisibilityTimeout":             { "Ref": "DLQDefVisibleTimeout" },
+            "MessageRetentionPeriod":        { "Ref": "DLQMsgRetentionPeriod" },
+            "MaximumMessageSize":            { "Ref": "DLQMaximumMsgSize" },
+            "DelaySeconds":                  { "Ref": "DLQDefVisibleTimeout" },
+            "ReceiveMessageWaitTimeSeconds": { "Ref": "DLQReceiveMsgWaitTimeSeconds" }
+          }
+      },
+      "HNSQSQ": {
+        "Type" : "AWS::SQS::Queue",
+        "DependsOn": "HNSQSDLQ",
+          "Properties" : {
+            "QueueName":                     { "Fn::Join": [ "-", [
+                "SQS","HN", { "Ref": "TagEnv" }, { "Ref": "QEnv" },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode" ] },
+                { "Ref": "PQtype" },{ "Ref": "QName" } ] ] },
+            "VisibilityTimeout":             { "Ref": "QDefVisibleTimeout" },
+            "MessageRetentionPeriod":        { "Ref": "QMsgRetentionPeriod" },
+            "MaximumMessageSize":            { "Ref": "QMaximumMsgSize" },
+            "DelaySeconds":                  { "Ref": "QDefVisibleTimeout" },
+            "ReceiveMessageWaitTimeSeconds": { "Ref": "QReceiveMsgWaitTimeSeconds" },
+            "RedrivePolicy": {
+              "deadLetterTargetArn" : {
+                "Fn::Join": [ ":", [
+                  "arn:aws:sqs",{"Fn::Sub": "${AWS::Region}"},{"Fn::Sub": "${AWS::AccountId}"},
+                  { "Fn::Join": [ "-", [ "SQS","HN", { "Ref": "TagEnv" }, { "Ref": "QEnv" },{ "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode" ] }, { "Ref": "PQtype" },{ "Ref": "QName" },"DLQ" ] ] }
+                ] ] },
+              "maxReceiveCount" : { "Ref": "DLQMaxReceiveCount" }
+            }
+          }
+      }
+    },
+
+    "Outputs": {
+      "OutSQS":  {
+        "Value": { "Ref" : "HNSQSQ" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-SQSQ" }}
+      },
+      "OutSQSDLQ":  {
+        "Value": { "Ref" : "HNSQSDLQ" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-SQSDLQ" }}
+      }
+    }
+}

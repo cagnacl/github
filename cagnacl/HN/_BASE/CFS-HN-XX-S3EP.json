@@ -1,0 +1,74 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (COMMON S3 EndPoint)",
+
+    "Metadata": {
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+    "Parameters": {
+      "VPCid":     { "Type": "String" },
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" }
+    },
+
+    "Resources": {
+
+      "VPCS3EndPoint":{
+        "Type" : "AWS::EC2::VPCEndpoint",
+          "Properties" : {
+            "VpcId": { "Ref": "VPCid" },
+            "PolicyDocument" : {
+              "Version":"2012-10-17",
+              "Statement":[{
+                "Effect":"Allow",
+                "Principal": "*",
+                "Action":["s3:*"],
+                "Resource":["arn:aws:s3:::s3-hybridnetwork*/*"]
+              }]
+            },
+            "ServiceName" : { "Fn::Join": [ "", [ "com.amazonaws.", { "Ref": "AWS::Region" }, ".s3" ] ] }
+          }
+      }
+
+
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      }
+    }
+}

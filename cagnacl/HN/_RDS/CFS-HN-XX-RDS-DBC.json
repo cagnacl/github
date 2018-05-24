@@ -1,0 +1,119 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (RDS Cluster)",
+
+    "Metadata": {
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+
+    "Parameters": {
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" },
+      "Tagenv":    { "Type": "String" },
+      "Region":    { "Type": "String" },
+      "DBCPG":     { "Type": "String" },
+      "DBUser":    { "Type": "String" },
+      "DBPass":    { "Type": "String" },
+      "InstNum" :  { "Type": "String" }
+    },
+
+    "Resources": {
+
+      "RDSDBClus" : {
+        "Type" : "AWS::RDS::DBCluster",
+        "Properties" : {
+          "AvailabilityZones" : [
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "a" ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "b" ] }
+          ],
+          "BackupRetentionPeriod" : "1",
+          "MasterUsername" : {"Ref": "DBUser"},
+          "MasterUserPassword" : {"Ref": "DBPass"},
+          "Engine" : "aurora-mysql",
+          "DBSubnetGroupName": { "Fn::Join": ["-", ["snetg","hn",
+            { "Fn::FindInMap": ["HN","Context",{"Ref": "TagEnv"} ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "rcode" ] },
+            "data","001" ] ] },
+          "DBClusterParameterGroupName" : { "Ref" : "DBCPG" },
+          "DBClusterIdentifier" : { "Fn::Join": ["-", [
+            "dbc","hn", { "Fn::FindInMap": ["HN","Context",{ "Ref": "TagEnv" } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "rcode" ] },
+            { "Fn::Select": ["5", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] }
+            ] ] },
+          "Port" : "3306",
+          "StorageEncrypted": true,
+          "KmsKeyId": "arn:aws:kms:eu-west-1:234485084610:key/797e4342-1e7a-4dba-a85f-ec8eeeeaa087",
+          "PreferredBackupWindow": "02:30-03:00",
+          "PreferredMaintenanceWindow": "sun:03:10-sun:03:40",
+          "VpcSecurityGroupIds" : [ { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{ "Ref":"TagEnv" },{ "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGrds" ] ] } } ],
+          "Tags": [
+            { "Key": "Name", "Value": { "Fn::Join": ["-", [
+              "dbc","hn", { "Fn::FindInMap": ["HN","Context",{ "Ref": "TagEnv" } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "rcode" ] },
+              { "Fn::Select": ["5", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] }
+              ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "RDS DB DatabaseCluster" },
+            { "Key": "Env","Value": { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } }
+          ]
+        }
+      }
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutDBC": {
+        "Value": { "Ref" : "RDSDBClus" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBC" }}
+      },
+      "OutDBCurlm": {
+        "Value": { "Fn::GetAtt" : [ "RDSDBClus", "Endpoint.Address" ] },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBCurlm" }}
+      },
+      "OutDBCurlr": {
+        "Value": { "Fn::GetAtt" : [ "RDSDBClus", "ReadEndpoint.Address" ] },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBCurlr" }}
+      },
+      "OutDBCport": {
+        "Value": { "Fn::GetAtt" : [ "RDSDBClus", "Endpoint.Port" ] },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBCport" }}
+      }
+    }
+}

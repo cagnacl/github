@@ -1,0 +1,426 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (ECS Service AdminConsole)",
+
+    "Metadata": {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+              "Label": { "default": "Launch Configuration" },
+              "Parameters": ["InstanceType","KeyName"]
+          },
+          {
+              "Label": { "default": "AutoScaling Group Configuration" },
+              "Parameters": ["MinSize","DesiredCapacity","MaxSize"]
+          },
+          {
+              "Label": { "default": "EFS Configuration" },
+              "Parameters": ["VolumeName"]
+          },
+          {
+              "Label": { "default": "Tagging Configuration" },
+              "Parameters": ["TagPrj","TagTeam","TagUser"]
+          }
+        ]
+      }
+    },
+
+    "Parameters": {
+        "KeyName": {
+            "Type": "AWS::EC2::KeyPair::KeyName",
+            "Description": "Name of an existing EC2 KeyPair to enable SSH access to the ECS instances.",
+            "Default": "kp-hybridnetwork-ecs"
+        },
+        "DesiredCapacity": {
+            "Type": "Number",
+            "Default": "2",
+            "Description": "Number of instances to launch in your ECS cluster."
+        },
+        "MinSize": {
+            "Type": "Number",
+            "Default": "2",
+            "Description": "Maximum number of instances that can be launched in your ECS cluster."
+        },
+        "MaxSize": {
+            "Type": "Number",
+            "Default": "2",
+            "Description": "Maximum number of instances that can be launched in your ECS cluster."
+        },
+        "InstanceType": {
+            "Description": "EC2 instance type",
+            "Type": "String",
+            "Default": "t2.micro",
+            "AllowedValues": [
+                "t2.micro","t2.small","t2.medium","t2.large",
+                "m3.medium","m3.large","m3.xlarge","m4.large",
+                "m4.xlarge","m4.2xlarge","m4.4xlarge","m4.10xlarge",
+                "c4.large","c4.xlarge","c4.2xlarge","c4.4xlarge","c4.8xlarge",
+                "c3.large","c3.xlarge","c3.2xlarge","c3.4xlarge","c3.8xlarge",
+                "r3.large","r3.xlarge","r3.2xlarge","r3.4xlarge","r3.8xlarge",
+                "i2.xlarge","i2.2xlarge","i2.4xlarge","i2.8xlarge"
+            ],
+            "ConstraintDescription": "Please choose a valid instance type."
+        },
+        "VolumeName" : {
+          "Description" : "The name to be used for the EFS volume",
+          "Type": "String",
+          "MinLength": "1",
+          "Default": "ECS-EFS"
+        },
+        "TagPrj": {
+          "Description": "Project's Name",
+          "Type": "String",
+          "Default": "HybridNetwork"
+        },
+        "TagTeam": {
+          "Description": "Team's Name",
+          "Type": "String" ,
+          "Default": "Innovation Public Cloud"
+        },
+        "TagUser": {
+          "Description": "Teammember's Name",
+          "Type": "String" ,
+          "Default": "a.cagnacl"
+        }
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+    "Resources": {
+
+        "ECSCluster": {
+            "Type": "AWS::ECS::Cluster",
+            "Properties" : {
+              "ClusterName" : { "Fn::Join": ["-", [ "ECSC","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"001" ] ] }
+            }
+        },
+
+        "CloudWatchLogsGrp": {
+          "Type": "AWS::Logs::LogGroup",
+          "Properties": {
+            "LogGroupName": { "Fn::Join": [ "-", [ "ECSLogGroup", { "Ref": "AWS::StackName" } ] ] },
+            "RetentionInDays": 14
+          }
+        },
+
+
+        "AppLoadBalancer": {
+            "Type": "AWS::ElasticLoadBalancingV2::LoadBalancer",
+            "Properties": {
+                "Name": { "Fn::Join": ["-", [ "ALB","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"001" ] ] },
+                "Scheme": "internet-facing",
+                "LoadBalancerAttributes": [
+                    {
+                        "Key": "idle_timeout.timeout_seconds",
+                        "Value": "30"
+                    }
+                ],
+                "Subnets": [
+                  { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETPUB1A" ] ] } },
+                  { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETPUB1B" ] ] } }
+                ],
+                "SecurityGroups": [
+                  { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGalb" ] ] } }
+                ]
+            }
+        },
+        "ECSALBLstnr80": {
+            "Type": "AWS::ElasticLoadBalancingV2::Listener",
+            "DependsOn": "ECSServiceRole",
+            "Properties": {
+              "DefaultActions": [ {
+                "Type": "forward",
+                "TargetGroupArn": { "Ref": "ECSALBTgt80" }
+              } ],
+              "LoadBalancerArn": { "Ref": "AppLoadBalancer" },
+              "Port": "80",
+              "Protocol": "HTTP"
+            }
+        },
+        "ECSALBLstnrRule": {
+            "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+            "DependsOn": "ECSALBLstnr80",
+            "Properties": {
+              "Actions": [ {
+                "Type": "forward",
+                "TargetGroupArn": { "Ref": "ECSALBTgt80" }
+              } ],
+              "Conditions": [ {
+                "Field": "path-pattern",
+                "Values": ["/"]
+              } ],
+              "ListenerArn": { "Ref": "ECSALBLstnr80" },
+              "Priority": 1
+            }
+        },
+        "ECSALBTgt80": {
+            "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+            "DependsOn": "AppLoadBalancer",
+            "Properties": {
+                "HealthCheckIntervalSeconds": 10,
+                "HealthCheckPath": "/",
+                "HealthCheckProtocol": "HTTP",
+                "HealthCheckTimeoutSeconds": 5,
+                "HealthyThresholdCount": 2,
+                "Name": { "Fn::Join": ["-", [ "TG","ALB","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                  { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"Port","80","001" ] ] },
+                "Port": 80,
+                "Protocol": "HTTP",
+                "UnhealthyThresholdCount": 2,
+                "VpcId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                  { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutVPC" ] ] } }
+            }
+        },
+
+        "ECSAutoScalingGroup": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "VPCZoneIdentifier": [
+                  { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETAPP1A" ] ] } },
+                  { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETAPP1B" ] ] } }
+                ],
+                "LaunchConfigurationName": { "Ref": "ContainerInstances" },
+                "MinSize": { "Ref": "MinSize" },
+                "MaxSize": { "Ref": "MaxSize" },
+                "DesiredCapacity": { "Ref": "DesiredCapacity" }
+            },
+            "UpdatePolicy": {
+                "AutoScalingReplacingUpdate": { "WillReplace": "true" }
+            }
+        },
+
+
+        "ContainerInstances": {
+          "Type": "AWS::AutoScaling::LaunchConfiguration",
+          "Properties": {
+            "ImageId": { "Fn::FindInMap": [ "RegionMap",{ "Ref": "AWS::Region" },"AMIID" ] },
+            "SecurityGroups": [
+              { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGefs" ] ] } },
+              { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGecs" ] ] } },
+              { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGssh" ] ] } },
+              { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGrhn" ] ] } }
+            ],
+            "InstanceType": { "Ref": "InstanceType" },
+            "IamInstanceProfile": { "Ref": "IAMEC2InstanceProfile" },
+            "KeyName": { "Ref": "KeyName" },
+            "UserData": {
+              "Fn::Base64": {
+                "Fn::Join": ["", [
+                  "cloud-init-per once yum_update yum update -y ",
+                  "cloud-init-per once install_nfs_utils yum install -y nfs-utils",
+                  "cloud-init-per once mkdir_efs mkdir /efs",
+                  "cloud-init-per once mount_efs echo -e '",{ "Ref" : "FileSystem" },".efs.eu-west-1.amazonaws.com:/ /efs nfs4 nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2 0 0' >> /etc/fstab",
+                  "mount -a",
+                  "#!/bin/bash -xe\n",
+                  "echo ECS_CLUSTER=",{ "Fn::Join": ["-", [ "ECSC","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"}]}]},
+                    { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"001" ] ] }," >> /etc/ecs/ecs.config\n"
+                ] ]
+              }
+            }
+          }
+        },
+
+        "EC2Role": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "RoleName": { "Fn::Join": ["-", [ "R","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","EC2","001" ] ] },
+            "AssumeRolePolicyDocument": {
+              "Statement": [ {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": [ "ec2.amazonaws.com" ] },
+                  "Action": [ "sts:AssumeRole" ]
+              } ]
+            },
+            "Path": "/",
+            "Policies": [ {
+              "PolicyName": "ecs-service",
+              "PolicyDocument": {
+                "Statement": [ {
+                  "Effect": "Allow",
+                  "Action": [
+                    "ecs:CreateCluster",
+                    "ecs:DeregisterContainerInstance",
+                    "ecs:DiscoverPollEndpoint",
+                    "ecs:Poll",
+                    "ecs:RegisterContainerInstance",
+                    "ecs:StartTelemetrySession",
+                    "ecs:UpdateContainerInstancesState",
+                    "ecs:Submit*",
+                    "ecr:GetAuthorizationToken",
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage",
+                    "logs:CreateLogStream",
+                    "logs:PutLogEvents"
+                  ],
+                  "Resource": "*"
+                } ]
+              }
+            } ]
+          }
+        },
+        "ECSServiceRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Statement": [ {
+                "Effect": "Allow",
+                "Principal": {
+                  "Service": [
+                    "ecs.amazonaws.com"
+                  ]
+                },
+                "Action": [
+                  "sts:AssumeRole"
+                ]
+              } ]
+            },
+            "Path": "/",
+            "Policies": [ {
+              "PolicyName": "ecs-service",
+              "PolicyDocument": {
+                "Statement": [ {
+                  "Effect": "Allow",
+                  "Action": [
+                    "elasticloadbalancing:DeregisterInstancesFromLoadBalancer",
+                    "elasticloadbalancing:DeregisterTargets",
+                    "elasticloadbalancing:Describe*",
+                    "elasticloadbalancing:RegisterInstancesWithLoadBalancer",
+                    "elasticloadbalancing:RegisterTargets",
+                    "ec2:Describe*",
+                    "ec2:AuthorizeSecurityGroupIngress"
+                  ],
+                  "Resource": "*"
+                } ]
+              }
+            } ]
+          }
+        },
+        "AutoscalingRole": {
+          "Type": "AWS::IAM::Role",
+          "Properties": {
+            "AssumeRolePolicyDocument": {
+              "Statement": [{
+                "Effect": "Allow",
+                "Principal": { "Service": [ "application-autoscaling.amazonaws.com" ] },
+                "Action": [ "sts:AssumeRole" ]
+              }]
+            },
+            "Path": "/",
+            "Policies": [{
+              "PolicyName": "service-autoscaling",
+              "PolicyDocument": {
+                "Statement": [{
+                  "Effect": "Allow",
+                  "Action": ["application-autoscaling:*","cloudwatch:DescribeAlarms","cloudwatch:PutMetricAlarm","ecs:DescribeServices","ecs:UpdateService" ],
+                  "Resource": "*"
+                }]
+              }
+            }]
+          }
+        },
+
+        "IAMEC2InstanceProfile": {
+          "Type": "AWS::IAM::InstanceProfile",
+          "Properties": {
+            "Path": "/",
+            "Roles": [ { "Ref": "EC2Role" } ] }
+        },
+
+        "FileSystem": {
+          "Type": "AWS::EFS::FileSystem",
+          "Properties": {
+            "PerformanceMode": "generalPurpose",
+            "FileSystemTags": [
+              {
+                "Key": "Name",
+                "Value": { "Fn::Join": ["-", [ "FS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"}]}]},
+                  { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","EFS","001" ] ] }
+              }
+            ]
+          }
+        },
+        "MountTargetAZa": {
+          "Type": "AWS::EFS::MountTarget",
+          "Properties": {
+            "FileSystemId": { "Ref": "FileSystem" },
+            "SubnetId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETAPP1A" ] ] } },
+            "SecurityGroups": [ { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGefs" ] ] } } ]
+          }
+        },
+        "MountTargetAZb": {
+          "Type": "AWS::EFS::MountTarget",
+          "Properties": {
+            "FileSystemId": { "Ref": "FileSystem" },
+            "SubnetId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSNETAPP1B" ] ] } },
+            "SecurityGroups": [ { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutSGefs" ] ] } } ]
+          }
+        }
+
+
+
+    },
+    "Outputs": {
+        "ECSCluster": {
+          "Value": { "Ref": "ECSCluster" }
+        },
+        "AppLoadBalancer": {
+          "Description": "Your ALB DNS URL",
+          "Value": { "Fn::Join": ["", [ { "Fn::GetAtt": ["AppLoadBalancer","DNSName"] } ] ] }
+        },
+        "MountTargetAZa": {
+          "Description": "Mount Target Availibility Zone A",
+          "Value": { "Ref" : "MountTargetAZa" },
+          "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutEFStgtA" }}
+        },
+        "MountTargetAZb": {
+          "Description": "Mount Target Availibility Zone B",
+          "Value": { "Ref" : "MountTargetAZb" },
+          "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutEFStgtB" }}
+        }
+    }
+}

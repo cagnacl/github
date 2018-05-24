@@ -1,0 +1,1309 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (COMMON DSG)",
+
+    "Metadata": {
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+
+    "Parameters": {
+      "VPCid":     { "Type": "String" },
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" }
+    },
+
+    "Resources": {
+
+
+      "HNSGecs": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"ECS","001" ] ] } ,
+            "GroupDescription": "ECS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": { "Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGefs": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"EFS","001" ] ] } ,
+            "GroupDescription": "EFS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": { "Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"EFS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGalb": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"ALB","001" ] ] } ,
+            "GroupDescription": "ALB access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGrds": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"RDS","001" ] ] } ,
+            "GroupDescription": "RDS access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"RDS","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGsgw": {
+        "Type": "AWS::EC2::SecurityGroup",
+        "DependsOn": "HNSGssh",
+        "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"SGW","001" ] ] } ,
+            "GroupDescription": "Secure GTW access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow RHN update",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              },
+              {
+                "Description": { "Fn::Join": ["",["Allow SSH to ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                  { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SSH","001" ] ] } ] ] },
+                "IpProtocol": "tcp",
+                "FromPort": "22",
+                "ToPort": "22",
+                "DestinationSecurityGroupId": { "Fn::GetAtt": ["HNSGssh","GroupId"] }
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SGW","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGssh": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"SSH","001" ] ] } ,
+            "GroupDescription": "SSH access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SSH","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+      "HNSGrhn": {
+        "Type": "AWS::EC2::SecurityGroup",
+          "Properties": {
+            "GroupName": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },{"Ref": "TagEnv"},"RHN","001" ] ] } ,
+            "GroupDescription": "RHN access",
+            "VpcId": { "Ref": "VPCid" },
+            "SecurityGroupEgress": [
+              {
+                "Description": "Allow Traffic Out",
+                "CidrIp": "0.0.0.0/0",
+                "IpProtocol": "tcp",
+                "FromPort": "0",
+                "ToPort": "65535"
+              }
+            ],
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"RHN","001" ] ] } },
+              { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+              { "Key": "User", "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env","Value": {"Ref": "TagEnv"}}
+            ]
+          }
+      },
+
+      "HNSGecsI00080": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTP from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI31000to61000": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow Intercluster traffic from/to ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "31000",
+          "ToPort": "61000",
+          "SourceSecurityGroupId": { "Ref": "HNSGecs" }
+        }
+      },
+
+      "HNSGecsI41443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "41443",
+          "ToPort":     "41443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI42443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "42443",
+          "ToPort":     "42443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI43443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "43443",
+          "ToPort":     "43443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI44443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "44443",
+          "ToPort":     "44443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI45443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "45443",
+          "ToPort":     "45443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI46443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "46443",
+          "ToPort":     "46443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI47443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "47443",
+          "ToPort":     "47443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI48443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "48443",
+          "ToPort":     "48443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI49443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "49443",
+          "ToPort":     "49443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGecsI31443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "31443",
+          "ToPort":     "31443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI32443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "32443",
+          "ToPort":     "32443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI33443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "33443",
+          "ToPort":     "33443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI34443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "34443",
+          "ToPort":     "34443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI35443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "35443",
+          "ToPort":     "35443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI36443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "36443",
+          "ToPort":     "36443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI37443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "37443",
+          "ToPort":     "37443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI38443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "38443",
+          "ToPort":     "38443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI39443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "39443",
+          "ToPort":     "39443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGecsI21443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "21443",
+          "ToPort":     "21443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI22443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "22443",
+          "ToPort":     "22443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI23443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "23443",
+          "ToPort":     "23443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI24443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "24443",
+          "ToPort":     "24443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI25443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "25443",
+          "ToPort":     "25443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI26443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "26443",
+          "ToPort":     "26443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI27443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "27443",
+          "ToPort":     "27443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI28443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "28443",
+          "ToPort":     "28443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI29443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "29443",
+          "ToPort":     "29443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGecsI11443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "11443",
+          "ToPort":     "11443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI12443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "12443",
+          "ToPort":     "12443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI13443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "13443",
+          "ToPort":     "13443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI14443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "14443",
+          "ToPort":     "14443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI15443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "15443",
+          "ToPort":     "15443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI16443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "16443",
+          "ToPort":     "16443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI17443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "17443",
+          "ToPort":     "17443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI18443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "18443",
+          "ToPort":     "18443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+      "HNSGecsI19443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "19443",
+          "ToPort":     "19443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGecsI00443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvPR",
+        "Properties": {
+          "GroupId": { "Ref": "HNSGecs" },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "443",
+          "ToPort":     "443",
+          "SourceSecurityGroupId": { "Ref": "HNSGalb" }
+        }
+      },
+
+      "HNSGefsI02049": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGefs", "GroupId" ] },
+          "Description": "Allow NFS Traffic",
+          "IpProtocol": "tcp",
+          "FromPort": "2049",
+          "ToPort": "2049",
+          "SourceSecurityGroupId": { "Fn::GetAtt": ["HNSGefs","GroupId"] }
+        }
+      },
+
+      "HNSGrdsI03306": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGrds", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow RDS(3306) from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "IpProtocol": "tcp",
+          "FromPort": "3306",
+          "ToPort": "3306",
+          "SourceSecurityGroupId": { "Fn::GetAtt": [ "HNSGecs", "GroupId" ] }
+        }
+      },
+
+      "HNSGsgwI00022": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGsgw", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow SSH from ","Internet" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGsshI00022": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGssh", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow SSH from ", {"Fn::Join": ["-",[ "SG","HN",{"Ref": "TagEnv"},
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"SGW","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "22",
+          "ToPort": "22",
+          "SourceSecurityGroupId": { "Fn::GetAtt": [ "HNSGsgw", "GroupId" ] }
+        }
+      },
+
+      "HNSGalbI00080": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTP from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort": "80",
+          "ToPort": "80",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI41443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "41443",
+          "ToPort":     "41443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI42443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "42443",
+          "ToPort":     "42443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI43443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "43443",
+          "ToPort":     "43443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI44443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "44443",
+          "ToPort":     "44443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI45443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "45443",
+          "ToPort":     "45443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI46443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "46443",
+          "ToPort":     "46443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI47443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "47443",
+          "ToPort":     "47443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI48443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "48443",
+          "ToPort":     "48443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI49443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "49443",
+          "ToPort":     "49443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI31443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "31443",
+          "ToPort":     "31443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI32443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "32443",
+          "ToPort":     "32443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI33443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "33443",
+          "ToPort":     "33443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI34443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "34443",
+          "ToPort":     "34443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI35443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "35443",
+          "ToPort":     "35443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI36443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "36443",
+          "ToPort":     "36443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI37443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "37443",
+          "ToPort":     "37443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI38443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "38443",
+          "ToPort":     "38443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI39443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "39443",
+          "ToPort":     "39443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI21443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "21443",
+          "ToPort":     "21443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI22443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "22443",
+          "ToPort":     "22443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI23443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "23443",
+          "ToPort":     "23443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI24443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "24443",
+          "ToPort":     "24443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI25443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "25443",
+          "ToPort":     "25443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI26443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "26443",
+          "ToPort":     "26443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI27443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "27443",
+          "ToPort":     "27443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI28443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "28443",
+          "ToPort":     "28443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI29443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvNP",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "29443",
+          "ToPort":     "29443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI11443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "11443",
+          "ToPort":     "11443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI12443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "12443",
+          "ToPort":     "12443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI13443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "13443",
+          "ToPort":     "13443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI14443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "14443",
+          "ToPort":     "14443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI15443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "15443",
+          "ToPort":     "15443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI16443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "16443",
+          "ToPort":     "16443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI17443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "17443",
+          "ToPort":     "17443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI18443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "18443",
+          "ToPort":     "18443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+      "HNSGalbI19443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvAC",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "19443",
+          "ToPort":     "19443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "HNSGalbI00443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Condition" : "EnvPR",
+        "Properties": {
+          "GroupId": { "Fn::GetAtt": [ "HNSGalb", "GroupId" ] },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   "443",
+          "ToPort":     "443",
+          "CidrIp" : "0.0.0.0/0"
+        }
+      }
+
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutSGecs": {
+        "Value": { "Ref" : "HNSGecs" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGecs" }}
+      },
+      "OutSGefs": {
+        "Value": { "Ref" : "HNSGefs" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGefs" }}
+      },
+      "OutSGalb": {
+        "Value": { "Ref" : "HNSGalb" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGalb" }}
+      },
+      "OutSGrds": {
+        "Value": { "Ref" : "HNSGrds" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGrds" }}
+      },
+      "OutSGsgw": {
+        "Value": { "Ref" : "HNSGsgw" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGsgw" }}
+      },
+      "OutSGssh": {
+        "Value": { "Ref" : "HNSGssh" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGssh" }}
+      },
+      "OutSGrhn": {
+        "Value": { "Ref" : "HNSGrhn" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSGrhn" }}
+      }
+
+    }
+}

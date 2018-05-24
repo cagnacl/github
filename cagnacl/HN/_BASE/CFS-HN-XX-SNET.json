@@ -1,0 +1,336 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Hybrid Network (COMMON SNET)",
+
+  "Metadata": {
+  },
+
+  "Mappings": {
+      "HN" :{
+        "Context":{
+          "NP":"np","AC":"ac","PR":"pr"
+        },
+        "Env": {
+          "PRD":"prd",
+          "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+          "ST1":"st1","ST2":"st2","ST3":"st3",
+          "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+          "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+        }
+      },
+      "RegionMap" : {
+        "eu-west-1" : {
+          "RCode" : "WE1","rcode" : "we1",
+          "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+          "ECSami": "ami-880d64f1",
+          "SGWami": "ami-19095960"
+        }
+      }
+  },
+
+  "Conditions": {
+    "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+    "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+    "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+  },
+
+
+
+  "Parameters": {
+    "VPCid":    { "Type": "String" },
+    "RTBout":   { "Type": "String" },
+    "RTBinA":   { "Type": "String" },
+    "RTBinB":   { "Type": "String" },
+    "TagPrj":   { "Type": "String" },
+    "TagTeam":  { "Type": "String" },
+    "TagUser":  { "Type": "String" },
+    "TagEnv":   { "Type": "String" },
+    "CidrNet":  { "Type": "String" },
+    "CidrMask": { "Type": "String" }
+  },
+
+  "Resources": {
+
+    "SNETPUB1A": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref":"VPCid"},
+        "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"11","0/24"] ] },
+        "MapPublicIpOnLaunch" : "True",
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "a" ] },
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["-",[
+              "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+              { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"A"] ] },
+              "PUB","001"
+          ] ] } },
+          { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+          { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+          { "Key": "User", "Value": { "Ref": "TagUser" } },
+          { "Key": "WrkLoadType", "Value": "" },
+          { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+        ]
+      }
+    },
+    "SNETPUB1ARTBout": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETPUB1A" },
+        "RouteTableId": { "Ref": "RTBout" }
+      }
+    },
+    "SNETPUB1B": {
+        "Type": "AWS::EC2::Subnet",
+        "Properties": {
+          "VpcId": {"Ref":"VPCid"},
+          "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"12","0/24"] ] },
+          "MapPublicIpOnLaunch" : "True",
+          "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "b" ] },
+          "Tags": [
+            { "Key": "Name", "Value": {"Fn::Join": ["-",[
+                "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+                { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"B"] ] },
+                "PUB","001"
+            ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+          ]
+        }
+      },
+    "SNETPUB1BRTBout": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETPUB1B" },
+        "RouteTableId": { "Ref": "RTBout" }
+      }
+    },
+    "SNETPUBDbGrp": {
+        "Type" : "AWS::RDS::DBSubnetGroup",
+        "Properties" : {
+          "DBSubnetGroupName" : {"Fn::Join": ["-",[
+            "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+            "PUB","001" ] ] },
+          "DBSubnetGroupDescription" : "SubnetGroup for PUB Subnet(s)",
+          "SubnetIds" : [ { "Ref": "SNETPUB1A" },{ "Ref": "SNETPUB1B" } ],
+          "Tags": [
+            { "Key": "Name", "Value": {"Fn::Join": ["-",[
+                "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+                "PUB","001"
+            ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+          ]
+        }
+      },
+    "SNETAPP1A": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref":"VPCid"},
+        "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"21","0/24"] ] },
+        "MapPublicIpOnLaunch" : "False",
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "a" ] },
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["-",[
+              "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+              { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"A"] ] },
+              "APP","001"
+          ] ] } },
+          { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+          { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+          { "Key": "User", "Value": { "Ref": "TagUser" } },
+          { "Key": "WrkLoadType", "Value": "" },
+          { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+        ]
+      }
+    },
+    "SNETAPP1ARTBinA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETAPP1A" },
+        "RouteTableId": { "Ref": "RTBinA" }
+      }
+    },
+    "SNETAPP1B": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+      "VpcId": {"Ref":"VPCid"},
+      "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"22","0/24"] ] },
+        "MapPublicIpOnLaunch" : "False",
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "b" ] },
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["-",[
+              "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+              { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"B"] ] },
+              "APP","001"
+          ] ] } },
+          { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+          { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+          { "Key": "User", "Value": { "Ref": "TagUser" } },
+          { "Key": "WrkLoadType", "Value": "" },
+          { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+        ]
+      }
+    },
+    "SNETAPP1BRTBinB": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETAPP1B" },
+        "RouteTableId": { "Ref": "RTBinB" }
+      }
+    },
+    "SNETAPPDbGrp": {
+        "Type" : "AWS::RDS::DBSubnetGroup",
+        "Properties" : {
+          "DBSubnetGroupName" : {"Fn::Join": ["-",[
+            "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+            "APP","001" ] ] },
+          "DBSubnetGroupDescription" : "SubnetGroup for APP Subnet(s)",
+          "SubnetIds" : [ { "Ref": "SNETAPP1A" },{ "Ref": "SNETAPP1B" } ],
+          "Tags": [
+            { "Key": "Name", "Value": {"Fn::Join": ["-",[
+                "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+                "APP","001"
+            ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+          ]
+        }
+      },
+    "SNETDATA1A": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref":"VPCid"},
+        "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"31","0/24"] ] },
+        "MapPublicIpOnLaunch" : "False",
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "a" ] },
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["-",[
+              "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+              { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"A"] ] },
+              "DATA","001"
+          ] ] } },
+          { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+          { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+          { "Key": "User", "Value": { "Ref": "TagUser" } },
+          { "Key": "WrkLoadType", "Value": "" },
+          { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+        ]
+      }
+    },
+    "SNETDATA1ARTBinA": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETDATA1A" },
+        "RouteTableId": { "Ref": "RTBinA" }
+      }
+    },
+    "SNETDATA1B": {
+      "Type": "AWS::EC2::Subnet",
+      "Properties": {
+        "VpcId": {"Ref":"VPCid"},
+        "CidrBlock": {"Fn::Join": [".",["10",{ "Fn::Select" : [ "1", { "Fn::Split": [".", { "Ref":"CidrNet"} ] } ] },"32","0/24"] ] },
+        "MapPublicIpOnLaunch" : "False",
+        "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "b" ] },
+        "Tags": [
+          { "Key": "Name", "Value": {"Fn::Join": ["-",[
+              "SNET","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+              { "Fn::Join": ["", [ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"B"] ] },
+              "DATA","001"
+          ] ] } },
+          { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+          { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+          { "Key": "User", "Value": { "Ref": "TagUser" } },
+          { "Key": "WrkLoadType", "Value": "" },
+          { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+        ]
+      }
+    },
+    "SNETDATA1BRTBinB": {
+      "Type": "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties": {
+        "SubnetId": { "Ref" : "SNETDATA1B" },
+        "RouteTableId": { "Ref": "RTBinB" }
+      }
+    },
+    "SNETDATADbGrp": {
+        "Type" : "AWS::RDS::DBSubnetGroup",
+        "Properties" : {
+          "DBSubnetGroupName" : {"Fn::Join": ["-",[
+            "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+            "DATA","001" ] ] },
+          "DBSubnetGroupDescription" : "SubnetGroup for DATA Subnet(s)",
+          "SubnetIds" : [ { "Ref": "SNETDATA1A" },{ "Ref": "SNETDATA1B" } ],
+          "Tags": [
+            { "Key": "Name", "Value": {"Fn::Join": ["-",[
+                "SNETG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+                "DATA","001"
+            ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env",         "Value": { "Ref": "TagEnv"} }
+          ]
+        }
+      }
+
+    },
+
+    "Outputs": {
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutSNETPUB1A":   {
+        "Value": { "Ref" : "SNETPUB1A" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETPUB1A" }}
+      },
+      "OutSNETPUB1B":   {
+        "Value": { "Ref" : "SNETPUB1B" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETPUB1B" }}
+      },
+      "OutSNETAPP1A":      {
+        "Value": { "Ref" : "SNETAPP1A" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETAPP1A" }}
+      },
+      "OutSNETAPP1B":      {
+        "Value": { "Ref" : "SNETAPP1B" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETAPP1B" }}
+      },
+      "OutSNETDATA1A":     {
+        "Value": { "Ref" : "SNETDATA1A" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETDATA1A" }}
+      },
+      "OutSNETDATA1B":     {
+        "Value": { "Ref" : "SNETDATA1B" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETDATA1B" }}
+      },
+      "OutSNETGPUB":      {
+        "Value": { "Ref" : "SNETPUBDbGrp" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETGPUB" }}
+      },
+      "OutSNETGAPP":     {
+        "Value": { "Ref" : "SNETAPPDbGrp" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETGAPP" }}
+      },
+      "OutSNETGDATA":     {
+        "Value": { "Ref" : "SNETDATADbGrp" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutSNETGDATA" }}
+      }
+    }
+}

@@ -1,0 +1,146 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (COMMON VPC)",
+
+    "Metadata": {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+              "Label": { "default": "Network Configuration" },
+              "Parameters": ["CidrNet","CidrMask"]
+          },
+          {
+              "Label": { "default": "Tagging Configuration" },
+              "Parameters": ["TagPrj","TagTeam","TagUser"]
+          }
+        ]
+      },
+      "AWS::CloudFormation::Designer": {
+      }
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+    "Parameters": {
+      "CidrNet":   { "Type": "String" },
+      "CidrMask":  { "Type": "String" },
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" }
+    },
+
+    "Resources": {
+
+      "VPC": {
+        "Type": "AWS::EC2::VPC",
+        "Properties": {
+          "CidrBlock": { "Fn::Join": ["",[ {"Ref": "CidrNet"},"/",{"Ref": "CidrMask"} ] ] },
+          "EnableDnsSupport" : "True",
+          "EnableDnsHostnames" : "True",
+          "Tags": [
+            { "Key": "Name", "Value": {"Fn::Join": ["-",[ "VPC","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+                { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"001" ] ] } },
+            { "Key": "Project",     "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team",        "Value": { "Ref": "TagTeam" } },
+            { "Key": "User",        "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env",         "Value": { "Ref": "TagUser" } }
+          ]
+        }
+      },
+      "RTBout": {
+          "Type": "AWS::EC2::RouteTable",
+          "Properties": {
+            "VpcId": { "Ref": "VPC" },
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "RTB","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },"WE1","2IGW" ] ] } },
+              { "Key": "Project",     "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team",        "Value": { "Ref": "TagTeam" } },
+              { "Key": "User",        "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env",         "Value": { "Ref": "TagUser" } }
+            ]
+          }
+      },
+      "RTBinA": {
+          "Type": "AWS::EC2::RouteTable",
+          "Properties": {
+            "VpcId": { "Ref": "VPC" },
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "RTB","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },"WE1A","2NGW" ] ] } },
+              { "Key": "Project",     "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team",        "Value": { "Ref": "TagTeam" } },
+              { "Key": "User",        "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env",         "Value": { "Ref": "TagUser" } }
+            ]
+          }
+      },
+      "RTBinB": {
+          "Type": "AWS::EC2::RouteTable",
+          "Properties": {
+            "VpcId": { "Ref": "VPC" },
+            "Tags": [
+              { "Key": "Name", "Value": {"Fn::Join": ["-",[ "RTB","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },"WE1B","2NGW" ] ] } },
+              { "Key": "Project",     "Value": { "Ref": "TagPrj" } },
+              { "Key": "Team",        "Value": { "Ref": "TagTeam" } },
+              { "Key": "User",        "Value": { "Ref": "TagUser" } },
+              { "Key": "WrkLoadType", "Value": "" },
+              { "Key": "Env",         "Value": { "Ref": "TagUser" } }
+            ]
+          }
+      }
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutVPC": {
+        "Value": { "Ref" : "VPC" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutVPC" }}
+      },
+      "OutRTBout": {
+        "Value": { "Ref" : "RTBout" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutRTBout" }}
+      },
+      "OutRTBinA": {
+        "Value": { "Ref" : "RTBinA" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutRTBinA" }}
+      },
+      "OutRTBinB": {
+        "Value": { "Ref" : "RTBinB" },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutRTBinB" }}
+      }
+    }
+}

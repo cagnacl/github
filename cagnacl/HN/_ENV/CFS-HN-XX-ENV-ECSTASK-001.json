@@ -1,0 +1,255 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (ENV)",
+
+    "Metadata": {
+      "AWS::CloudFormation::Interface": {
+        "ParameterGroups": [
+          {
+              "Label": { "default": "Tagging Configuration" },
+              "Parameters": ["TagPrj","TagTeam","TagUser"]
+          },
+          {
+              "Label": { "default": "Env Configuration" },
+              "Parameters": ["EnvContext","EnvEnv","EnvIndex"]
+          }
+        ]
+      }
+    },
+
+    "Parameters": {
+      "TagPrj": {
+        "Description": "Project's Name",
+        "Type": "String",
+        "Default": "HybridNetwork"
+      },
+      "TagTeam": {
+        "Description": "Team's Name",
+        "Type": "String" ,
+        "Default": "Innovation Public Cloud"
+      },
+      "TagUser": {
+        "Description": "Teammember's Name",
+        "Type": "String",
+        "Default": "a.cagnacl"
+      },
+      "Path": {
+          "Description": "The path to register with the Application Load Balancer",
+          "Type": "String",
+          "Default": "/"
+      },
+      "DesiredCount": {
+          "Description": "How many instances of this task should we run across our cluster?",
+          "Type": "Number",
+          "Default": 2
+      },
+      "MaxCount": {
+          "Description": "Maximum number of instances of this task we can run across our cluster",
+          "Type": "Number",
+          "Default": 3
+      },
+      "ProductServiceUrl": {
+          "Description": "The URL of the Product Service (used to fetch product information)",
+          "Type": "String",
+          "Default": "http://blah.blah.kar"
+      },
+      "EnvContext":{
+        "Description": "NP or AC or PR",
+        "Type": "String",
+        "Default": "NP"
+      },
+      "EnvEnv":{
+        "Description": "WS or DV or ST or AC or PR",
+        "Type": "String",
+        "Default": "DV",
+        "AllowedValues":["WS","DV","ST","AC","PR"]
+      },
+      "EnvIndex":{
+        "Description": "Index ( ex AC2 )",
+        "Type": "String",
+        "Default": "1",
+        "AllowedValues":["1","2","3","4","5","6","7","8","9"]
+      }
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3",
+            "WS":"4","DV":"3","ST":"2","AC":"1","PR":"0"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+    "Resources": {
+
+      "UpdtDSGalbIxx443":{
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+          { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+          "COMMON","001","OutSGalb" ] ] } },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", "CloudFront" ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "ToPort":     { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "CidrIp" : "0.0.0.0/0"
+        }
+      },
+
+      "UpdtDSGecsIxx443": {
+        "Type": "AWS::EC2::SecurityGroupIngress",
+        "Properties": {
+          "GroupId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+          { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+          "COMMON","001","OutSGecs" ] ] } },
+          "Description": { "Fn::Join": ["",["Allow HTTPS from ", {"Fn::Join": ["-",[ "SG","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ALB","001" ] ] } ] ] },
+          "IpProtocol": "tcp",
+          "FromPort":   { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "ToPort":     { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "SourceSecurityGroupId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{ "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] },
+          { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+          "COMMON","001","OutSGalb" ] ] } }
+        }
+      },
+
+      "UpdtLstnr": {
+        "Type": "AWS::ElasticLoadBalancingV2::Listener",
+        "Properties": {
+          "DefaultActions": [ {
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "UpdtTgt" }
+          }],
+          "LoadBalancerArn": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECSCLU","001","OutALBECS" ] ] } },
+          "Port": { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "Protocol": "HTTP"
+        }
+      },
+
+      "UpdtLstnrRule": {
+        "Type": "AWS::ElasticLoadBalancingV2::ListenerRule",
+        "DependsOn": "UpdtLstnr",
+        "Properties": {
+          "Actions": [{
+            "Type": "forward",
+            "TargetGroupArn": { "Ref": "UpdtTgt" }
+          }],
+          "Conditions": [{
+            "Field": "path-pattern",
+            "Values": ["/"]
+          }],
+          "ListenerArn": { "Ref": "UpdtLstnr" },
+          "Priority": 1
+        }
+      },
+
+      "UpdtTgt": {
+        "Type": "AWS::ElasticLoadBalancingV2::TargetGroup",
+        "Properties": {
+          "VpcId": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"COMMON","001","OutVPC" ] ] } },
+          "Name": { "Fn::Join": ["-", [
+            "TG","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },
+            "ECSCLU",{ "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" },"443"]]},"001"]]},
+          "Port": { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+          "Protocol": "HTTP",
+          "HealthCheckIntervalSeconds": 10,
+          "HealthCheckPath": "/",
+          "HealthCheckProtocol": "HTTP",
+          "HealthCheckTimeoutSeconds": 5,
+          "HealthyThresholdCount": 2,
+          "UnhealthyThresholdCount": 2,
+          "Tags": [
+            { "Key": "Name", "Value": { "Fn::Join": ["-",[ "SG","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+              { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECS","001" ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "" },
+            { "Key": "Env","Value": {"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] } }
+          ]
+        }
+      },
+
+      "CreateTDefDemo": {
+        "Type": "AWS::ECS::TaskDefinition",
+        "Properties": {
+          "Family": "HelloWorld",
+          "ContainerDefinitions": [{
+            "Name": "HelloWorld",
+            "Essential": true,
+            "Image": "httpd:2.4",
+            "Cpu": 10,
+            "Memory": 128,
+            "Environment": [{
+              "Name": "PRODUCT_SERVICE_URL",
+              "Value": { "Ref": "ProductServiceUrl" }
+            },
+            {
+              "Name": "MYSQL_CONFIG_FILE",
+              "Value": "/usr/config/mysql-config.json"
+            }],
+            "PortMappings": [{
+              "HostPort": { "Fn::Join": ["",[{ "Fn::FindInMap" : [ "HN","Env",{"Ref":"EnvEnv" }] },{"Ref":"EnvIndex" }, "443" ] ] },
+              "ContainerPort": "80"
+            }],
+            "LogConfiguration": {
+              "LogDriver": "awslogs",
+              "Options": {
+                "awslogs-group": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },{ "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECSCLU","001","OutCWLogGrp" ] ] } },
+                "awslogs-region": { "Ref": "AWS::Region" },
+                "awslogs-stream-prefix": "HelloWorld"
+              }
+            }
+          }]
+        }
+      },
+
+      "CreateServDemo": {
+        "Type": "AWS::ECS::Service",
+        "DependsOn": "UpdtLstnrRule",
+        "Properties": {
+          "Cluster": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECSCLU","001","OutECSCLU" ] ] } },
+          "DesiredCount": { "Ref": "DesiredCount" },
+          "LoadBalancers": [ {
+            "ContainerName": "HelloWorld",
+            "ContainerPort": 80,
+            "TargetGroupArn": { "Ref": "UpdtTgt" }
+          } ],
+          "Role": { "Fn::ImportValue": { "Fn::Join": ["-", [ "CFS","HN",{"Fn::Select": ["2",{"Fn::Split":["-",{"Ref":"AWS::StackName"} ] } ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "RCode"] },"ECSCLU","001","OutIRECSServ" ] ] } },
+          "TaskDefinition": { "Ref": "CreateTDefDemo" }
+        }
+      }
+
+    },
+
+      "Outputs": {
+    }
+
+}

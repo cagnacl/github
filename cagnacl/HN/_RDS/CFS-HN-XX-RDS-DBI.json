@@ -1,0 +1,99 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Hybrid Network (RDS Instance)",
+
+    "Metadata": {
+    },
+
+    "Mappings": {
+        "HN" :{
+          "Context":{
+            "NP":"np","AC":"ac","PR":"pr"
+          },
+          "Env": {
+            "PRD":"prd",
+            "AC1":"ac1","AC2":"ac2","AC3":"ac3",
+            "ST1":"st1","ST2":"st2","ST3":"st3",
+            "DV1":"dv1","DV2":"dv2","DV3":"dv3",
+            "WS1":"ws1","WS2":"ws2","WS3":"ws3"
+          }
+        },
+        "RegionMap" : {
+          "eu-west-1" : {
+            "RCode" : "WE1","rcode" : "we1",
+            "a":"eu-west-1a" , "b":"eu-west-1b", "c":"eu-west-1c",
+            "ECSami": "ami-880d64f1",
+            "SGWami": "ami-19095960"
+          }
+        }
+    },
+
+    "Conditions": {
+      "EnvNP": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "NP" ] },
+      "EnvAC": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "AC" ] },
+      "EnvPR": { "Fn::Equals" : [ { "Fn::Select": ["2", {"Fn::Split" : [ "-" , {"Ref": "AWS::StackName"} ] } ] } , "PR" ] }
+    },
+
+
+    "Parameters": {
+      "TagPrj":    { "Type": "String" },
+      "TagTeam":   { "Type": "String" },
+      "TagUser":   { "Type": "String" },
+      "TagEnv":    { "Type": "String" },
+      "Tagenv":    { "Type": "String" },
+      "Region":    { "Type": "String" },
+      "DBCId":     { "Type": "String" },
+      "DBIPG":     { "Type": "String" },
+      "AZ" :       { "Type": "String" },
+      "InstNum" :  { "Type": "String" }
+    },
+
+    "Resources": {
+
+      "RDSDBInst" : {
+        "Type" : "AWS::RDS::DBInstance",
+        "Properties" : {
+          "DBInstanceIdentifier" : { "Fn::Join": ["-", [ "dbi","hn", { "Ref" : "Tagenv" },{ "Fn::Join" : ["",[ { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "rcode" ] },{ "Ref" : "AZ" } ] ] },{ "Ref" : "InstNum" } ] ] },
+          "DBSubnetGroupName": { "Fn::Join": ["-", ["snetg","hn",
+            { "Fn::FindInMap": ["HN","Context",{"Ref": "TagEnv"} ] },
+            { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, "rcode" ] },
+            "data","001" ] ] },
+          "DBParameterGroupName" : { "Ref": "DBIPG" },
+          "Engine" : "aurora-mysql",
+          "DBClusterIdentifier" : { "Ref" : "DBCId" },
+          "PubliclyAccessible" : "false",
+          "AvailabilityZone" : { "Fn::FindInMap" : [ "RegionMap", { "Ref" : "AWS::Region" }, { "Ref" : "AZ" } ] },
+          "DBInstanceClass" : "db.t2.small",
+          "Tags": [
+            { "Key": "Name", "Value": { "Fn::Join": ["-", [ "dbi","hn", { "Ref" : "Tagenv" },{ "Fn::Join" : ["",[{ "Ref" : "Tagenv" },{ "Ref" : "AZ" } ] ] },{ "Ref" : "InstNum" } ] ] } },
+            { "Key": "Project", "Value": { "Ref": "TagPrj" } },
+            { "Key": "Team", "Value": { "Ref": "TagTeam" } },
+            { "Key": "User", "Value": { "Ref": "TagUser" } },
+            { "Key": "WrkLoadType", "Value": "RDS DB Instance" },
+            { "Key": "Env","Value": { "Ref": "TagEnv" } }
+          ]
+        }
+      }
+
+    },
+
+    "Outputs": {
+
+      "OutStackName": {
+        "Value": { "Ref" : "AWS::StackName" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-StackName" }}
+      },
+      "OutDBI": {
+        "Value": { "Ref" : "RDSDBInst" } ,
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBI" }}
+      },
+      "OutDBIurl": {
+        "Value": { "Fn::GetAtt" : [ "RDSDBInst", "Endpoint.Address" ] },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDICurl" }}
+      },
+      "OutDBIport": {
+        "Value": { "Fn::GetAtt" : [ "RDSDBInst", "Endpoint.Port" ] },
+        "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-OutDBIport" }}
+      }
+    }
+}
